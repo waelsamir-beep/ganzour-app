@@ -54,25 +54,29 @@ export default function HomePage() {
   const [cats, setCats] = useState<CategoryDTO[]>([]);
   const [items, setItems] = useState<ProfessionDTO[]>([]);
   const [community, setCommunity] = useState<Community | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [slide, setSlide] = useState(0);
 
   useEffect(() => {
     let alive = true;
     (async () => {
-      try {
-        const [catsRes, profRes, comRes] = await Promise.all([
-          api<{ categories: CategoryDTO[] }>("/api/categories"),
-          api<{ professions: ProfessionDTO[] }>("/api/professions"),
-          api<Community>("/api/community"),
-        ]);
-        if (!alive) return;
-        setCats(catsRes.categories);
-        setItems(profRes.professions);
-        setCommunity(comRes);
-      } finally {
-        if (alive) setLoading(false);
-      }
+      const [catsRes, profRes, comRes] = await Promise.allSettled([
+        api<{ categories: CategoryDTO[] }>("/api/categories"),
+        api<{ professions: ProfessionDTO[] }>("/api/professions"),
+        api<Community>("/api/community"),
+      ]);
+      if (!alive) return;
+
+      if (catsRes.status === "fulfilled") setCats(catsRes.value.categories);
+      if (profRes.status === "fulfilled") setItems(profRes.value.professions);
+      if (comRes.status === "fulfilled") setCommunity(comRes.value);
+      setLoadError(
+        catsRes.status === "rejected" ||
+          profRes.status === "rejected" ||
+          comRes.status === "rejected"
+      );
+      setLoading(false);
     })();
     return () => {
       alive = false;
@@ -348,6 +352,12 @@ export default function HomePage() {
               عرض الكل
             </Link>
           </div>
+
+          {loadError && (
+            <p role="status" className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
+              تعذر تحميل بعض البيانات الآن. يمكنك متابعة تصفح الصفحة.
+            </p>
+          )}
 
           {loading ? (
             <div className="grid grid-cols-4 gap-2.5">
